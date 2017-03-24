@@ -1,5 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+#repository: https://github.com/trumanzhao/xls2lua
+#trumanzhao, 2017/03/24, trumanzhao@foxmail.com
+
 import os, time, hashlib, codecs, xlrd
 
 '''
@@ -303,7 +306,7 @@ class Converter(object):
         if self._code_writer != None:
             self._code_writer(sheet_name, lua_path, code);
             return;
-        open(lua_path, "w").write(code);
+        open(lua_path, "wb").write(code.encode("utf-8"));
         #except:
         #    raise Exception("Failed to write lua, sheet=%s, lua=%s" % (sheet_name, lua_path));
 
