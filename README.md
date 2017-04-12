@@ -22,5 +22,4 @@ python2或者python3均可,需要xlrd模块用于读取excel.
 具体参见test1.xls.
 
 ## 使用方式2:
-无需在excel文件中加入额外的名为xls2lua的meta sheet.  
-直接在列标题中标注,标注格式与方式1类似,具体示例参见test2.xls.
+无需在excel文件中加入额外的名为xls2lua的meta sheet,直接在列标题中标注即可;标注格式与方式1类似,具体示例参见test2.xls.
