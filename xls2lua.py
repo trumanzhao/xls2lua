@@ -112,13 +112,13 @@ class Converter(object):
         for column_idx in range(0, meta_sheet.ncols):
             self._load_meta_column(meta_sheet, column_idx);
 
-    #meta_sheet中,每两列定义了一个sheet的映射
-    #本函数将这两列数据load为一个meta_table:
+    #meta_sheet中,每列定义了一个sheet的映射
+    #本函数将每列数据load为一个meta_table:
     def _load_meta_column(self, meta_sheet, column_idx):
         text = meta_sheet.cell(0, column_idx).value;
-        text_split = text.split("=");
-        lua_name = text_split[0];
-        sheet_name = text_split[1];
+        text_split = text.split("=>");
+        sheet_name = text_split[0];
+        lua_name = text_split[1];
         if sheet_name not in self._sheet_names:
             raise Exception("Meta error, sheet not exist: %s" % sheet_name);
 
@@ -134,9 +134,9 @@ class Converter(object):
             cell = meta_sheet.cell(row_idx, column_idx);
             if cell.ctype != xlrd.XL_CELL_TEXT or cell.value == u"":
                 continue;
-            text_split = cell.value.split("=");
-            lua_name = text_split[0];
-            column_name = text_split[1];
+            text_split = cell.value.split("=>");
+            column_name = text_split[0];
+            lua_name = text_split[1];
             if column_name not in column_headers:
                 raise Exception("Meta data error, column(%s) not exist in sheet %s" % (column_name, sheet_name));
             sheet_desc.map(column_name, lua_name, column_headers[column_name]);
@@ -190,7 +190,7 @@ class Converter(object):
         except:
             return "";
 
-    #尽可能把cell按其在excel中看起来的样子读成字符串
+    #该函数尽可能返回xls看上去的字面值
     def _get_cell_raw(self, cell):
         if cell.ctype == xlrd.XL_CELL_TEXT:
             return cell.value;
@@ -352,8 +352,8 @@ class Converter(object):
             return self._get_cell_bool(cell);
         if column_desc.map_type == "string":
             return self._get_cell_string(cell);
-        return self._get_cell_raw(cell);
-
+        text = self._get_cell_raw(cell);
+        return text if text != "" else "nil";
 
 def _test_writer(sheet_name, lua_path, code):
     code += u'''
