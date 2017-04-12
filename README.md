@@ -1,5 +1,5 @@
 # xls2lua
-将excel文件转换为lua代码的小工具
+将excel文件(.xls, .xlsx)转换为lua代码的小工具
 
 ## 主要特性:
 - 支持多级索引转换,生成层级table

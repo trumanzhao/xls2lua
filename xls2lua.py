@@ -326,8 +326,9 @@ class Converter(object):
                 child = node[0];
                 line = self._tab_step * step + key_name + u" = " + child["v"];
                 if comment != None:
-                    line += " --" + child["c"];
-                line += u",\n";
+                    line += u", --%s\n" % child["c"];
+                else:
+                    line += u",\n";
                 lines.append(line);
                 return;
             line = self._tab_step * step + key_name + u" = {";
