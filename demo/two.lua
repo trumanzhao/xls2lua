@@ -1,4 +1,5 @@
 --xls_sha1=e527908506b8ad732225775eaf4ece9cb602a8b0
+--2017-04-12 15:57:05, https://github.com/trumanzhao/xls2lua
 --双列示例@test1.xlsx
 sheet =
 {

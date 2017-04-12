@@ -3,7 +3,7 @@
 #repository: https://github.com/trumanzhao/xls2lua
 #trumanzhao, 2017/03/24, trumanzhao@foxmail.com
 
-import os, time, hashlib, codecs, xlrd
+import os, time, datetime, hashlib, codecs, xlrd
 
 '''
 填表时一般无需刻意对字符串加引号,除非是raw模式.
@@ -239,9 +239,15 @@ class Converter(object):
             return u"false";
         return u"true";
 
+    def _get_signature(self):
+        url = "https://github.com/trumanzhao/xls2lua";
+        now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S');
+        return u"--%s, %s\n" % (now, url);
+
     def _gen_array_code(self, sheet_desc):
         lines = list();
         lines.append(u"%s%s\n" % (self._hash_tag, self._xls_hash));
+        lines.append(self._get_signature());
         lines.append(u"--%s@%s\n" % (sheet_desc.sheet_name, self._xls_filename));
         lines.append(u"%ssheet =\n" % (u"local " if self._local_sheet else u""));
         lines.append(u"{\n");
@@ -289,6 +295,7 @@ class Converter(object):
 
         lines = list();
         lines.append(u"%s%s\n" % (self._hash_tag, self._xls_hash));
+        lines.append(self._get_signature());
         comment = u"%s@%s" % (sheet_desc.sheet_name, self._xls_filename);
         table_var = u"%ssheet" % (u"local " if self._local_sheet else u"");
         self._gen_tree_code(lines, sheet_desc, root, 0, table_var, comment);
