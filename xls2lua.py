@@ -3,7 +3,7 @@
 #repository: https://github.com/trumanzhao/xls2lua
 #trumanzhao, 2017/03/24, trumanzhao@foxmail.com
 
-import os, time, datetime, hashlib, codecs, xlrd
+import os, sys, getopt, time, datetime, hashlib, codecs, xlrd
 
 '''
 填表时一般无需刻意对字符串加引号,除非是raw模式.
@@ -363,7 +363,8 @@ class Converter(object):
         text = self._get_cell_raw(cell);
         return text if text != "" else "nil";
 
-def _test_writer(sheet_name, lua_path, code):
+#用户自定义writer示例:
+def _my_writer(sheet_name, lua_path, code):
     code += u'''
 -- insert some code --
 for key, node in pairs(sheet) do
@@ -372,10 +373,37 @@ end
 ''';
     open(lua_path, "wb").write(code.encode("utf-8"));
 
-if __name__ == "__main__":
-    converter = Converter(tab_step=" " * 4, check_hash=False);
-    converter.convert('test1.xlsx', _test_writer);
+usage = '''
+xls2lua [options...] files ...
+-c, --check_hash, check sha1 hash, default true.
+-l, --local_sheet, export as local table.
+-r, --return_sheet, end with a return.
+-i n, --indent=n, set code indent.
+'''
+def main():
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "clri:", ["check_hash", "local_sheet", "return_sheet", "indent="]);
+    except getopt.GetoptError as err:
+        print(err);
+        print(usage);
+        sys.exit(1);
+    params = dict();
+    for opt, val in opts:
+        if opt == "-c" or opt == "--check_hash":
+            params["check_hash"] = True;
+        elif opt == "-l" or opt == "--local_sheet":
+            params["local_sheet"] = True;
+        elif opt == "-r" or opt == "--return_sheet":
+            params["return_sheet"] = True;
+        elif opt == "-i" or opt == "--indent":
+            params["tab_step"] = ' ' * int(val);
 
-    converter = Converter(tab_step=" " * 4, check_hash=False, local_sheet=True, return_sheet=True);
-    converter.convert('test2.xlsx');
+    converter = Converter(**params);
+    for filename in args:
+        converter.convert(filename);
+        #如果希望在生成的代码中额外插入一些代码,可以通过指定自己的writer来实现:
+        #converter.convert(filename, _my_writer);
+
+if __name__ == "__main__":
+    main();
 
