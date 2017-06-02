@@ -12,22 +12,16 @@
 
 ### 2. 作为库导入
 
-这种方式可以实现一些自定义功能,比如在生成的lua中额外插入代码:
+convert函数会返回一个实际转换(lua\_path, sheet\_name)的dict.   
+调用者可以基于此实现一些自定义功能,比如对生成的lua代码做某些修改,在lua代码中额外插入代码等等.
 
 ```py
 import xls2lua
 
-def _my_writer(sheet_name, lua_path, code):
-    code += u'''
--- insert some code --
-for key, node in pairs(sheet) do
-    print(key);
-end
-'''
-    open(lua_path, "wb").write(code.encode("utf-8"));
-
 converter = xls2lua.Converter();
-converter.convert("test1.xlsx", _my_writer);
+outfiles = converter.convert("test1.xlsx");
+for lua_path, sheet_name in outfiles.items():
+    print("%s --> %s" % (sheet_name, lua_path));
 ```
 
 ## 主要特性:
@@ -36,7 +30,6 @@ converter.convert("test1.xlsx", _my_writer);
 - 支持差量转换,只转换有变更的文件(基于文件哈希比较)
 - 支持把excel列标题直接做lua变量名,也支持用额外metadata指定变量名和变量类型(比如列标题可能是中文的)
 - 支持指定转换的数据类型,如string,number,bool,也可以不指定类型
-- 支持在生成的lua代码前后额外插入代码(比如用来在加载时做预处理)
 
 ## 环境需求
 

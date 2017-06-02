@@ -59,10 +59,10 @@ class Converter(object):
     _tab_step = u" " * 4;
     _out_dir = u"";
     _check_hash = True;
-    _code_writer = None;
     _hash_tag = "--xls_sha1=";
     _local_sheet = False;
     _return_sheet = False;
+    _out_files = None;
 
     #tab_step: 生成lua代码的tab缩进,默认为四个空格(字符串),可以设置为任意个空格或'\t'的字符串
     #out_dir: 输出路径,默认当前目录
@@ -81,10 +81,7 @@ class Converter(object):
         if "return_sheet" in kwargs:
             self._return_sheet = kwargs["return_sheet"];
 
-    #code_writer: lua代码的自定义写入器,一般是用来对代码做写入前的修改
-    #def code_writer(sheet_name, lua_path, code): return modified(code);
-    #其中, sheet_name为excel的sheet name, lua_path为写入的lua文件名, code是Unicode字符串
-    def convert(self, xls_filename, code_writer=None):
+    def convert(self, xls_filename):
         xls_filename = _unicode_anyway(xls_filename);
         try:
             self._workbook = xlrd.open_workbook(xls_filename);
@@ -94,9 +91,9 @@ class Converter(object):
         except:
             raise Exception("Failed to load workbook: %s" % xls_filename);
 
-        self._code_writer = code_writer;
         self._sheet_names = self._workbook.sheet_names();
         self._meta_tables = list();
+        self._out_files = dict();
         if "xls2lua" in self._sheet_names:
             self._load_meta_sheet();
         else:
@@ -104,6 +101,7 @@ class Converter(object):
 
         for sheet_desc in self._meta_tables:
             self._convert_sheet(sheet_desc);
+        return self._out_files;
 
     #meta_tables: list of _SheetDesc
     #meta_tables之所以是一个list而不是dict,是因为允许对同一个sheet做多个映射转换
@@ -306,16 +304,14 @@ class Converter(object):
     def _write_lua(self, sheet_desc, code):
         sheet_name = sheet_desc.sheet_name;
         lua_path = self._get_lua_path(sheet_desc.lua_name);
-        #try:
-        lua_dir = os.path.split(lua_path)[0];
-        if lua_dir != "" and not os.path.exists(lua_dir):
-            os.makedirs(lua_dir)
-        if self._code_writer != None:
-            self._code_writer(sheet_name, lua_path, code);
-            return;
-        open(lua_path, "wb").write(code.encode("utf-8"));
-        #except:
-        #    raise Exception("Failed to write lua, sheet=%s, lua=%s" % (sheet_name, lua_path));
+        try:
+            lua_dir = os.path.split(lua_path)[0];
+            if lua_dir != "" and not os.path.exists(lua_dir):
+                os.makedirs(lua_dir);
+            open(lua_path, "wb").write(code.encode("utf-8"));
+            self._out_files[lua_path] = sheet_name;
+        except:
+            raise Exception("Failed to write lua, sheet=%s, lua=%s" % (sheet_name, lua_path));
 
     def _gen_tree_code(self, lines, sheet_desc, node, step, key_name, comment):
         if comment != None:
@@ -363,16 +359,6 @@ class Converter(object):
         text = self._get_cell_raw(cell);
         return text if text != "" else "nil";
 
-#用户自定义writer示例:
-def _my_writer(sheet_name, lua_path, code):
-    code += u'''
--- insert some code --
-for key, node in pairs(sheet) do
-    print(key);
-end
-''';
-    open(lua_path, "wb").write(code.encode("utf-8"));
-
 usage = '''
 xls2lua [options...] files ...
 -c, --check_hash, check sha1 hash, default true.
@@ -400,9 +386,10 @@ def main():
 
     converter = Converter(**params);
     for filename in args:
-        converter.convert(filename);
-        #如果希望在生成的代码中额外插入一些代码,可以通过指定自己的writer来实现:
-        #converter.convert(filename, _my_writer);
+        print("convert %s ..." % filename);
+        outfiles = converter.convert(filename);
+        for lua_path, sheet_name in outfiles.items():
+            print("%s --> %s" % (sheet_name, lua_path));
 
 if __name__ == "__main__":
     main();
