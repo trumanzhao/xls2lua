@@ -334,7 +334,7 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--indent", dest="indent", help="indent size, 0 for tab, default 4 (spaces)", type=int, default=4, choices=[0, 2, 4, 8]);
     parser.add_argument("-o", "--output", dest="output", help="output file", default="output.lua");
     parser.add_argument('inputs', nargs='+', help="input excel files");
-    args = parser.parse_args(["test1.xlsx", "test2.xlsx"]);
+    args = parser.parse_args();
     converter = Converter(args.scope, args.indent);
     if any(converter.compare_time(filename, args.output) for filename in args.inputs):
         for filename in args.inputs:
