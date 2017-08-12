@@ -3,7 +3,7 @@
 #repository: https://github.com/trumanzhao/xls2lua
 #trumanzhao, 2017/03/24, trumanzhao@foxmail.com
 
-import os, sys, getopt, time, datetime, hashlib, codecs, xlrd
+import os, sys, argparse, time, datetime, hashlib, codecs, xlrd
 
 '''
 填表时一般无需刻意对字符串加引号,除非是raw模式.
@@ -18,30 +18,30 @@ raw模式,转换时照搬,即可能是字符串,也可能是代码,也可能是�
 
 class _ColumnDesc(object):
     """列描述"""
-    def __init__(self, column_name, lua_name, column_idx):
-        first_char = lua_name[0];
-        last_char = lua_name[-1];
+    def __init__(self, column_name, field_name, column_idx):
+        first_char = field_name[0];
+        last_char = field_name[-1];
         map_table = {u"?":"bool", u"#":"number", u"$":"string"};
-        lua_name = lua_name if first_char != u"*" else lua_name[1:];
-        lua_name = lua_name if last_char not in map_table else lua_name[:-1];
+        field_name = field_name if first_char != u"*" else field_name[1:];
+        field_name = field_name if last_char not in map_table else field_name[:-1];
         self.column_name = column_name;
         self.column_idx = column_idx;
         self.is_key = (first_char == u"*");
-        self.lua_name = lua_name;
+        self.field_name = field_name;
         self.map_type = map_table[last_char] if last_char in map_table else "raw";
 
 class _SheetDesc(object):
     """sheet描述"""
-    def __init__(self, sheet_name, lua_name):
+    def __init__(self, sheet_name, table_name):
         self.sheet_name = sheet_name;
-        self.lua_name = lua_name;
+        self.table_name = table_name;
         self.columns = list();
         self.maps = dict();
         self.keys = list();
         self.has_key = False;
 
-    def map(self, column_name, lua_name, column_idx):
-        desc = _ColumnDesc(column_name, lua_name, column_idx);
+    def map(self, column_name, field_name, column_idx):
+        desc = _ColumnDesc(column_name, field_name, column_idx);
         self.columns.append(desc);
         self.maps[column_name] = desc;
         if desc.is_key:
@@ -56,30 +56,20 @@ def _unicode_anyway(text):
         return text.decode("utf-8") if isinstance(text, bytes) else text;
 
 class Converter(object):
-    _tab_step = u" " * 4;
-    _out_dir = u"";
-    _check_hash = True;
-    _hash_tag = "--xls_sha1=";
-    _local_sheet = False;
-    _return_sheet = False;
-    _out_files = None;
+    _scope = None;
+    _indent = u"\t";
+    _lines = None;
+    _tables = None;
 
-    #tab_step: 生成lua代码的tab缩进,默认为四个空格(字符串),可以设置为任意个空格或'\t'的字符串
-    #out_dir: 输出路径,默认当前目录
-    #check_hash: 是否检查文件哈希
-    #local_sheet: 是否将sheet对应的table名作为local变量,默认不加
-    #return_sheet: 是否在代码最后return sheet,默认不加;如果需要在末尾插入代码的话,建议不要打开这项.
-    def __init__(self, **kwargs):
-        if "tab_step" in kwargs:
-            self._tab_step = _unicode_anyway(kwargs["tab_step"]);
-        if "out_dir" in kwargs:
-            self._out_dir = _unicode_anyway(kwargs["out_dir"]);
-        if "check_hash" in kwargs:
-            self._check_hash = kwargs["check_hash"];
-        if "local_sheet" in kwargs:
-            self._local_sheet = kwargs["local_sheet"];
-        if "return_sheet" in kwargs:
-            self._return_sheet = kwargs["return_sheet"];
+    def __init__(self, scope, indent):
+        self._scope = scope;
+        self._indent = indent == 0 and u"\t" or u" " * indent;
+        self.reset();
+
+    def _get_signature(self):
+        url = "https://github.com/trumanzhao/xls2lua";
+        now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S');
+        return u"--%s, %s\n" % (now, url);
 
     def convert(self, xls_filename):
         xls_filename = _unicode_anyway(xls_filename);
@@ -93,7 +83,7 @@ class Converter(object):
 
         self._sheet_names = self._workbook.sheet_names();
         self._meta_tables = list();
-        self._out_files = dict();
+
         if "xls2lua" in self._sheet_names:
             self._load_meta_sheet();
         else:
@@ -101,7 +91,36 @@ class Converter(object):
 
         for sheet_desc in self._meta_tables:
             self._convert_sheet(sheet_desc);
-        return self._out_files;
+            self._tables.append(sheet_desc.table_name);
+
+    def save(self, filename):
+        lua_dir = os.path.split(filename)[0];
+        if lua_dir != "" and not os.path.exists(lua_dir):
+            os.makedirs(lua_dir);
+        line = u"";
+        if self._scope == u"local":
+            for table_name in self._tables:
+                if line == u"":
+                    line += u"return %s" % table_name;
+                else:
+                    line += u", %s" % table_name;
+            line += u";\n";
+        code = u"".join(self._lines) + line;
+        open(filename, "wb").write(code.encode("utf-8"));
+
+    def reset(self):
+        self._lines = list();
+        self._lines.append(self._get_signature());
+        self._lines.append(u"\n");
+        self._tables = list();
+
+    #比较文件时间戳,如果input比较新或者output不存在,则返回True,否则False
+    def compare_time(self, input_file, output_file):
+        if not os.path.isfile(output_file):
+            return True;
+        input_time = os.path.getmtime(input_file);
+        output_time = os.path.getmtime(output_file);
+        return input_time >= output_time;
 
     #meta_tables: list of _SheetDesc
     #meta_tables之所以是一个list而不是dict,是因为允许对同一个sheet做多个映射转换
@@ -114,9 +133,9 @@ class Converter(object):
     #本函数将每列数据load为一个meta_table:
     def _load_meta_column(self, meta_sheet, column_idx):
         text = meta_sheet.cell(0, column_idx).value;
-        text_split = text.split("=>");
+        text_split = text.split("=");
         sheet_name = text_split[0];
-        lua_name = text_split[1];
+        table_name = text_split[1];
         if sheet_name not in self._sheet_names:
             raise Exception("Meta error, sheet not exist: %s" % sheet_name);
 
@@ -127,17 +146,17 @@ class Converter(object):
             column_header = self._get_cell_raw(cell);
             column_headers[column_header] = ncol;
 
-        sheet_desc = _SheetDesc(sheet_name, lua_name);
+        sheet_desc = _SheetDesc(sheet_name, table_name);
         for row_idx in range(1, meta_sheet.nrows):
             cell = meta_sheet.cell(row_idx, column_idx);
             if cell.ctype != xlrd.XL_CELL_TEXT or cell.value == u"":
                 continue;
-            text_split = cell.value.split("=>");
+            text_split = cell.value.split("=");
             column_name = text_split[0];
-            lua_name = text_split[1];
+            field_name = text_split[1];
             if column_name not in column_headers:
                 raise Exception("Meta data error, column(%s) not exist in sheet %s" % (column_name, sheet_name));
-            sheet_desc.map(column_name, lua_name, column_headers[column_name]);
+            sheet_desc.map(column_name, field_name, column_headers[column_name]);
         #不能所有的列都是索引列
         if len(sheet_desc.keys) > 0 and len(sheet_desc.keys) == len(sheet_desc.columns):
             raise Exception("Meta data error, too many keys, sheet: %s" % sheet_name);
@@ -159,34 +178,11 @@ class Converter(object):
                 raise Exception("Meta data error, too many keys for columns, sheet: %s" % sheet_name);
             self._meta_tables.append(sheet_desc);
 
-    def _get_lua_path(self, lua_name):
-        lua_path = lua_name;
-        ext = os.path.splitext(lua_path)[1].lower();
-        if ext != ".lua":
-            lua_path += ".lua";
-        lua_path = os.path.join(self._out_dir, lua_path);
-        lua_path = os.path.normpath(lua_path);
-        return lua_path;
-
     def _convert_sheet(self, sheet_desc):
-        lua_path = self._get_lua_path(sheet_desc.lua_name);
-        stored_hash = self._get_stored_hash(lua_path);
-        if self._check_hash and stored_hash == self._xls_hash:
-            #文件没有变化,无需转换
+        if sheet_desc.has_key:
+            self._gen_table_code(sheet_desc);
             return;
-        if not sheet_desc.has_key:
-            self._gen_array_code(sheet_desc);
-            return;
-        self._gen_table_code(sheet_desc);
-
-    def _get_stored_hash(self, lua_path):
-        try:
-            line = codecs.open(lua_path, 'r', "utf-8").readline().strip();
-            if line.startswith(self._hash_tag):
-                return line[len(self._hash_tag):];
-            return "";
-        except:
-            return "";
+        self._gen_array_code(sheet_desc);
 
     #该函数尽可能返回xls看上去的字面值
     def _get_cell_raw(self, cell):
@@ -237,18 +233,10 @@ class Converter(object):
             return u"false";
         return u"true";
 
-    def _get_signature(self):
-        url = "https://github.com/trumanzhao/xls2lua";
-        now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S');
-        return u"--%s, %s\n" % (now, url);
-
     def _gen_array_code(self, sheet_desc):
-        lines = list();
-        lines.append(u"%s%s\n" % (self._hash_tag, self._xls_hash));
-        lines.append(self._get_signature());
-        lines.append(u"--%s@%s\n" % (sheet_desc.sheet_name, self._xls_filename));
-        lines.append(u"%ssheet =\n" % (u"local " if self._local_sheet else u""));
-        lines.append(u"{\n");
+        self._lines.append(u"--%s@%s\n" % (sheet_desc.sheet_name, self._xls_filename));
+        self._lines.append(u"%s%s =\n" % (self._scope == u"local" and u"local " or self._scope == u"global" and u"_G." or u"", sheet_desc.table_name));
+        self._lines.append(u"{\n");
         sheet = self._workbook.sheet_by_name(sheet_desc.sheet_name);
         for row in sheet.get_rows():
             line_code = u"    " if len(row) <= 1 else u"    {";
@@ -259,11 +247,9 @@ class Converter(object):
                 line_code += self._get_cell_raw(cell);
                 cell_idx = cell_idx + 1;
             line_code += u",\n" if len(row) <= 1 else u"},\n";
-            lines.append(line_code);
-        lines.append(u"};\n");
-        if self._return_sheet:
-            lines.append(u"return sheet;\n");
-        self._write_lua(sheet_desc, ''.join(lines));
+            self._lines.append(line_code);
+        self._lines.append(u"};\n");
+        self._lines.append(u"\n");
 
     def _gen_table_code(self, sheet_desc):
         sheet = self._workbook.sheet_by_name(sheet_desc.sheet_name);
@@ -272,62 +258,45 @@ class Converter(object):
         for row_idx in range(1, sheet.nrows):
             row_content = dict();
             for column_desc in sheet_desc.columns:
-                row_content[column_desc.lua_name] = self._get_cell_text(sheet, row_idx, column_desc);
+                row_content[column_desc.field_name] = self._get_cell_text(sheet, row_idx, column_desc);
             node = root;
             for key_idx in range(0, len(sheet_desc.keys)):
                 key_desc = sheet_desc.keys[key_idx];
-                lua_value = row_content[key_desc.lua_name];
-                child = next((kv["v"] for kv in node if kv["k"] == lua_value), None);
+                field_value = row_content[key_desc.field_name];
+                child = next((kv["v"] for kv in node if kv["k"] == field_value), None);
                 if child == None:
                     #这里用了list,而不是dict,是为了保持最终生成的行顺序尽可能跟填表顺序一致
                     child = list();
                     comment = key_desc.column_name;
-                    node.append({"k":lua_value, "v":child, "c":comment});
+                    node.append({"k":field_value, "v":child, "c":comment});
                 node = child;
             for column_desc in sheet_desc.columns:
                 if not column_desc.is_key:
-                    lua_name = column_desc.lua_name;
-                    lua_value = row_content[lua_name];
+                    field_name = column_desc.field_name;
+                    field_value = row_content[field_name];
                     comment = column_desc.column_name;
-                    node.append({"k":lua_name, "v":lua_value, "c":comment});
+                    node.append({"k":field_name, "v":field_value, "c":comment});
 
-        lines = list();
-        lines.append(u"%s%s\n" % (self._hash_tag, self._xls_hash));
-        lines.append(self._get_signature());
         comment = u"%s@%s" % (sheet_desc.sheet_name, self._xls_filename);
-        table_var = u"%ssheet" % (u"local " if self._local_sheet else u"");
-        self._gen_tree_code(lines, sheet_desc, root, 0, table_var, comment);
-        if self._return_sheet:
-            lines.append(u"return sheet;\n");
-        self._write_lua(sheet_desc, ''.join(lines));
+        table_var = u"%s%s" % (self._scope == u"local" and u"local " or self._scope == "global" and "_G." or u"", sheet_desc.table_name);
+        self._gen_tree_code(sheet_desc, root, 0, table_var, comment);
+        self._lines.append(u"\n");
 
-    def _write_lua(self, sheet_desc, code):
-        sheet_name = sheet_desc.sheet_name;
-        lua_path = self._get_lua_path(sheet_desc.lua_name);
-        try:
-            lua_dir = os.path.split(lua_path)[0];
-            if lua_dir != "" and not os.path.exists(lua_dir):
-                os.makedirs(lua_dir);
-            open(lua_path, "wb").write(code.encode("utf-8"));
-            self._out_files[lua_path] = sheet_name;
-        except:
-            raise Exception("Failed to write lua, sheet=%s, lua=%s" % (sheet_name, lua_path));
-
-    def _gen_tree_code(self, lines, sheet_desc, node, step, key_name, comment):
+    def _gen_tree_code(self, sheet_desc, node, step, key_name, comment):
         if comment != None:
-            lines.append(self._tab_step * step + u"--" + comment + u"\n");
+            self._lines.append(self._indent * step + u"--" + comment + u"\n");
 
         if step >= len(sheet_desc.keys):
             if len(node) == 1:
                 child = node[0];
-                line = self._tab_step * step + key_name + u" = " + child["v"];
+                line = self._indent * step + key_name + u" = " + child["v"];
                 if comment != None:
                     line += u", --%s\n" % child["c"];
                 else:
                     line += u",\n";
-                lines.append(line);
+                self._lines.append(line);
                 return;
-            line = self._tab_step * step + key_name + u" = {";
+            line = self._indent * step + key_name + u" = {";
             first_item = True;
             for kv in node:
                 lua_name = kv["k"];
@@ -336,17 +305,17 @@ class Converter(object):
                 line += u"%s=%s" % (lua_name, kv["v"]);
                 first_item = False;
             line += u"},\n"
-            lines.append(line);
+            self._lines.append(line);
             return;
 
-        lines.append(self._tab_step * step + key_name + u" =\n");
-        lines.append(self._tab_step * step + u"{\n");
+        self._lines.append(self._indent * step + key_name + u" =\n");
+        self._lines.append(self._indent * step + u"{\n");
         firstNode = True;
         for kv in node:
             comment = kv["c"] if firstNode else None;
-            self._gen_tree_code(lines, sheet_desc, kv["v"], step + 1, u"[%s]" % kv["k"], comment);
+            self._gen_tree_code(sheet_desc, kv["v"], step + 1, u"[%s]" % kv["k"], comment);
             firstNode = False;
-        lines.append(self._tab_step * step + u"}" + (u";" if step == 0 else u",") + u"\n");
+        self._lines.append(self._indent * step + u"}" + (u";" if step == 0 else u",") + u"\n");
 
     def _get_cell_text(self, sheet, row_idx, column_desc):
         cell = sheet.cell(row_idx, column_desc.column_idx);
@@ -359,38 +328,16 @@ class Converter(object):
         text = self._get_cell_raw(cell);
         return text if text != "" else "nil";
 
-usage = '''
-xls2lua [options...] files ...
--c, --check_hash, check sha1 hash, default true.
--l, --local_sheet, export as local table.
--r, --return_sheet, end with a return.
--i n, --indent=n, set code indent.
-'''
-def main():
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "clri:", ["check_hash", "local_sheet", "return_sheet", "indent="]);
-    except getopt.GetoptError as err:
-        print(err);
-        print(usage);
-        sys.exit(1);
-    params = dict();
-    for opt, val in opts:
-        if opt == "-c" or opt == "--check_hash":
-            params["check_hash"] = True;
-        elif opt == "-l" or opt == "--local_sheet":
-            params["local_sheet"] = True;
-        elif opt == "-r" or opt == "--return_sheet":
-            params["return_sheet"] = True;
-        elif opt == "-i" or opt == "--indent":
-            params["tab_step"] = ' ' * int(val);
-
-    converter = Converter(**params);
-    for filename in args:
-        print("convert %s ..." % filename);
-        outfiles = converter.convert(filename);
-        for lua_path, sheet_name in outfiles.items():
-            print("%s --> %s" % (sheet_name, lua_path));
-
 if __name__ == "__main__":
-    main();
+    parser = argparse.ArgumentParser("excel to lua convertor");
+    parser.add_argument("-g", "--scope", dest="scope", help="table scope,local,global", choices=["local", "global", "default"]);
+    parser.add_argument("-i", "--indent", dest="indent", help="indent size, 0 for tab, default 4 (spaces)", type=int, default=4, choices=[0, 2, 4, 8]);
+    parser.add_argument("-o", "--output", dest="output", help="output file", default="output.lua");
+    parser.add_argument('inputs', nargs='+', help="input excel files");
+    args = parser.parse_args(["test1.xlsx", "test2.xlsx"]);
+    converter = Converter(args.scope, args.indent);
+    if any(converter.compare_time(filename, args.output) for filename in args.inputs):
+        for filename in args.inputs:
+            converter.convert(filename);
+        converter.save(args.output);
 
