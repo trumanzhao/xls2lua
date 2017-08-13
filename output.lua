@@ -1,6 +1,6 @@
---2017-08-13 08:54:59, https://github.com/trumanzhao/xls2lua
+--2017-08-13 09:09:02, https://github.com/trumanzhao/xls2lua
 
---带列标题示例@test1.xlsx
+--test1.xlsx: 带列标题示例
 table_with_header =
 {
     --大段位
@@ -27,7 +27,7 @@ table_with_header =
     },
 };
 
---单列示例@test1.xlsx
+--test1.xlsx: 单列示例
 sigle_column =
 {
     "无类型指示的字符串必须加引号",
@@ -39,7 +39,7 @@ sigle_column =
     12345,
 };
 
---双列示例@test1.xlsx
+--test1.xlsx: 双列示例
 dictionary =
 {
     --名字
@@ -48,7 +48,7 @@ dictionary =
     ["王麻子"] = 30,
 };
 
---数组示例@test1.xlsx
+--test1.xlsx: 数组示例
 array_data =
 {
     {0, 1, 2, 3, 4, 5},
@@ -59,7 +59,7 @@ array_data =
     {5, 5, 10, 15, 20, 25},
 };
 
---test2@test2.xlsx
+--test2.xlsx: test2
 test2 =
 {
     --*dan#

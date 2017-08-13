@@ -234,7 +234,7 @@ class Converter(object):
         return u"true";
 
     def _gen_array_code(self, sheet_desc):
-        self._lines.append(u"--%s@%s\n" % (sheet_desc.sheet_name, self._xls_filename));
+        self._lines.append(u"--%s: %s\n" % (self._xls_filename, sheet_desc.sheet_name));
         self._lines.append(u"%s%s =\n" % (self._scope == u"local" and u"local " or self._scope == u"global" and u"_G." or u"", sheet_desc.table_name));
         self._lines.append(u"{\n");
         sheet = self._workbook.sheet_by_name(sheet_desc.sheet_name);
@@ -277,7 +277,7 @@ class Converter(object):
                     comment = column_desc.column_name;
                     node.append({"k":field_name, "v":field_value, "c":comment});
 
-        comment = u"%s@%s" % (sheet_desc.sheet_name, self._xls_filename);
+        comment = u"%s: %s" % (self._xls_filename, sheet_desc.sheet_name);
         table_var = u"%s%s" % (self._scope == u"local" and u"local " or self._scope == "global" and "_G." or u"", sheet_desc.table_name);
         self._gen_tree_code(sheet_desc, root, 0, table_var, comment);
         self._lines.append(u"\n");
