@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!python
 # -*- coding: utf-8 -*-
 #repository: https://github.com/trumanzhao/xls2lua
 #trumanzhao, 2017/03/24, trumanzhao@foxmail.com
@@ -330,13 +330,14 @@ class Converter(object):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("excel to lua convertor");
-    parser.add_argument("-g", "--scope", dest="scope", help="table scope,local,global", choices=["local", "global", "default"]);
+    parser.add_argument("-s", "--scope", dest="scope", help="table scope,local,global", choices=["local", "global", "default"]);
     parser.add_argument("-i", "--indent", dest="indent", help="indent size, 0 for tab, default 4 (spaces)", type=int, default=4, choices=[0, 2, 4, 8]);
     parser.add_argument("-o", "--output", dest="output", help="output file", default="output.lua");
+    parser.add_argument("-f", "--force", dest="force", action="store_true", help="force convert");
     parser.add_argument('inputs', nargs='+', help="input excel files");
     args = parser.parse_args();
     converter = Converter(args.scope, args.indent);
-    if any(converter.compare_time(filename, args.output) for filename in args.inputs):
+    if args.force or any(converter.compare_time(filename, args.output) for filename in args.inputs):
         for filename in args.inputs:
             converter.convert(filename);
         converter.save(args.output);
