@@ -1,4 +1,4 @@
-#!python
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 #repository: https://github.com/trumanzhao/xls2lua
 #trumanzhao, 2017/03/24, trumanzhao@foxmail.com
@@ -58,12 +58,14 @@ def _unicode_anyway(text):
 class Converter(object):
     _scope = None;
     _indent = u"\t";
+    _meta = None;
     _lines = None;
     _tables = None;
 
-    def __init__(self, scope, indent):
+    def __init__(self, scope, indent, meta):
         self._scope = scope;
         self._indent = indent == 0 and u"\t" or u" " * indent;
+        self._meta = meta;
         self.reset();
 
     def _get_signature(self):
@@ -77,14 +79,13 @@ class Converter(object):
             self._workbook = xlrd.open_workbook(xls_filename);
             self._xls_filetime = os.path.getmtime(xls_filename);
             self._xls_filename = xls_filename;
-            self._xls_hash = hashlib.sha1(open(xls_filename, 'rb').read()).hexdigest()
         except:
             raise Exception("Failed to load workbook: %s" % xls_filename);
 
         self._sheet_names = self._workbook.sheet_names();
         self._meta_tables = list();
 
-        if "xls2lua" in self._sheet_names:
+        if self._meta in self._sheet_names:
             self._load_meta_sheet();
         else:
             self._load_meta_header();
@@ -125,7 +126,7 @@ class Converter(object):
     #meta_tables: list of _SheetDesc
     #meta_tables之所以是一个list而不是dict,是因为允许对同一个sheet做多个映射转换
     def _load_meta_sheet(self):
-        meta_sheet = self._workbook.sheet_by_name("xls2lua");
+        meta_sheet = self._workbook.sheet_by_name(self._meta);
         for column_idx in range(0, meta_sheet.ncols):
             self._load_meta_column(meta_sheet, column_idx);
 
@@ -332,11 +333,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("excel to lua convertor");
     parser.add_argument("-s", "--scope", dest="scope", help="table scope,local,global", choices=["local", "global", "default"]);
     parser.add_argument("-i", "--indent", dest="indent", help="indent size, 0 for tab, default 4 (spaces)", type=int, default=4, choices=[0, 2, 4, 8]);
+    parser.add_argument("-m", "--meta", dest="meta", help="meta sheet name, default 'xls2lua'", default="xls2lua");
     parser.add_argument("-o", "--output", dest="output", help="output file", default="output.lua");
     parser.add_argument("-f", "--force", dest="force", action="store_true", help="force convert");
     parser.add_argument('inputs', nargs='+', help="input excel files");
     args = parser.parse_args();
-    converter = Converter(args.scope, args.indent);
+    converter = Converter(args.scope, args.indent, args.meta);
     if args.force or any(converter.compare_time(filename, args.output) for filename in args.inputs):
         for filename in args.inputs:
             converter.convert(filename);
