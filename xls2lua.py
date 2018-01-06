@@ -16,6 +16,9 @@ raw模式,转换时照搬,即可能是字符串,也可能是代码,也可能是�
 可以考虑加个参数,使得所有EMPTY都抛异常,或者指定EMPTY咋处理.
 '''
 
+# 数字转字符串的格式,如果有不同的精度要求,可以调整这里
+number2string = "%.6f";
+
 class _ColumnDesc(object):
     """列描述"""
     def __init__(self, column_name, field_name, column_idx):
@@ -190,7 +193,7 @@ class Converter(object):
         if cell.ctype == xlrd.XL_CELL_TEXT:
             return cell.value;
         if cell.ctype == xlrd.XL_CELL_NUMBER:
-            return ("%.6f" % cell.value).rstrip('0').rstrip('.');
+            return (number2string % cell.value).rstrip('0').rstrip('.');
         if cell.ctype == xlrd.XL_CELL_DATE:
             dt = xlrd.xldate.xldate_as_datetime(cell.value, self._workbook.datemode);
             return u"%s" % dt;
@@ -203,7 +206,7 @@ class Converter(object):
         if cell.ctype == xlrd.XL_CELL_TEXT:
             cell_text = cell.value;
         if cell.ctype == xlrd.XL_CELL_NUMBER:
-            cell_text = ("%.6f" % cell.value).rstrip('0').rstrip('.');
+            cell_text = (number2string % cell.value).rstrip('0').rstrip('.');
         if cell.ctype == xlrd.XL_CELL_DATE:
             dt = xlrd.xldate.xldate_as_datetime(cell.value, self._workbook.datemode);
             cell_text = u"%s" % dt;
@@ -216,7 +219,7 @@ class Converter(object):
             #这里认为用户填的是一个数字,可能是整数,也可能是小数,也可能是十六进制...
             return cell.value;
         if cell.ctype == xlrd.XL_CELL_NUMBER:
-            return ("%.6f" % cell.value).rstrip('0').rstrip('.');
+            return (number2string % cell.value).rstrip('0').rstrip('.');
         if cell.ctype == xlrd.XL_CELL_DATE:
             dt = xlrd.xldate.xldate_as_datetime(cell.value, self._workbook.datemode);
             return u"%d" % time.mktime(dt.timetuple());
