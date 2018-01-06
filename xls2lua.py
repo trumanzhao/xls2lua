@@ -190,8 +190,7 @@ class Converter(object):
         if cell.ctype == xlrd.XL_CELL_TEXT:
             return cell.value;
         if cell.ctype == xlrd.XL_CELL_NUMBER:
-            number = int(cell.value);
-            return u"%d" % number if number == cell.value else u"%g" % cell.value;
+            return ("%.17f" % cell.value).rstrip('0').rstrip('.');
         if cell.ctype == xlrd.XL_CELL_DATE:
             dt = xlrd.xldate.xldate_as_datetime(cell.value, self._workbook.datemode);
             return u"%s" % dt;
@@ -204,8 +203,7 @@ class Converter(object):
         if cell.ctype == xlrd.XL_CELL_TEXT:
             cell_text = cell.value;
         if cell.ctype == xlrd.XL_CELL_NUMBER:
-            number = int(cell.value);
-            cell_text = u"%d" % number if number == cell.value else u"%g" % cell.value;
+            cell_text = ("%.17f" % cell.value).rstrip('0').rstrip('.');
         if cell.ctype == xlrd.XL_CELL_DATE:
             dt = xlrd.xldate.xldate_as_datetime(cell.value, self._workbook.datemode);
             cell_text = u"%s" % dt;
@@ -218,8 +216,7 @@ class Converter(object):
             #这里认为用户填的是一个数字,可能是整数,也可能是小数,也可能是十六进制...
             return cell.value;
         if cell.ctype == xlrd.XL_CELL_NUMBER:
-            number = int(cell.value);
-            return u"%d" % number if number == cell.value else u"%g" % cell.value;
+            return ("%.17f" % cell.value).rstrip('0').rstrip('.');
         if cell.ctype == xlrd.XL_CELL_DATE:
             dt = xlrd.xldate.xldate_as_datetime(cell.value, self._workbook.datemode);
             return u"%d" % time.mktime(dt.timetuple());
